@@ -8,8 +8,10 @@
          "layout.rkt")
 
 
+(define (log message) (displayln message (current-error-port)))
+
 (define (panic! message)
-  (displayln message (current-error-port))
+  (log  message)
   (exit 1))
 
 (define (config-root-window xdisplay root display-w display-h)
@@ -33,6 +35,10 @@
      (when (equal? '(ControlMask) (XKeyEvent-state event))
        (define xk-key (XKeycodeToKeysym xdisplay (XKeyEvent-keycode event) 0))
        (case xk-key
+         ; F1 - F12
+         [(65470 65471 65472 65473 65474 65475 65476 65477
+                 65478 65479 65480 65481)
+          (send engine switch-workspace (- xk-key 65470))] ; zero-indexed
          ; space
          [(32)  (send engine next-layout)]
          ; j
@@ -40,11 +46,10 @@
          ; k
          [(107) (send engine rotate-right)]
          [else
-          (displayln (format "key-event ~a ~a ~a"
-                             (XKeyEvent-state   event)
-                             (XKeyEvent-keycode event)
-                             xk-key)
-                     (current-output-port))]))]
+          (log (format "key-event ~a ~a ~a"
+                       (XKeyEvent-state   event)
+                       (XKeyEvent-keycode event)
+                       xk-key))]))]
     [(KeyRelease) (void)]
     ;; Window Crossing
     [(EnterNotify) (void)]
@@ -63,8 +68,7 @@
     [(UnmapNotify)   (void)]
     ;; Unhandled events
     (else
-     (displayln (format "event: ~a" (XEvent-type event))
-                (current-output-port)))))
+     (log (format "event: ~a" (XEvent-type event))))))
 
 
 (define (tanuki-wm)
@@ -82,11 +86,12 @@
   ;; Initialize and configure the root window.
   (define root-window (RootWindow xdisplay screen))
   (config-root-window xdisplay root-window display-w display-h)
-  (displayln "root window has been configured" (current-error-port))
+  (log "root window has been configured")
 
   ;; Enable 'KeyPress' events for all relevant key combinations.
   ;; TODO: one day keyboard shortcuts should be configurable...
-  (for ([key (list XK-space XK-j XK-k)])
+  (for ([key (list XK-F1 XK-F2 XK-F3 XK-F4 XK-F5 XK-F6 XK-F7 XK-F8
+                   XK-F9 XK-F10 XK-F11 XK-F12 XK-space XK-j XK-k)])
     (grab-key xdisplay root-window key))
 
   ;; Initialize the tiling window layout engine. Handles sizing and placement
@@ -98,7 +103,7 @@
   (define x11-port
     (unsafe-file-descriptor->port
      (XConnectionNumber xdisplay) "x11-port" '(read)))
-  (displayln "x11 port has been opened for reading" (current-error-port))
+  (log "x11 port has been opened for reading")
 
   ;; Run the event loop until the application terminates.
   (let event-loop ()
@@ -110,12 +115,11 @@
                        (handle-x11-event xdisplay engine)
                        (x11-port-loop)))))
      (handle-evt (current-input-port)
-                 (λ (e) (displayln (format "input ~a ~a" e (read-line e))
-                                   (current-error-port)))))
+                 (λ (e) (log (format "input ~a ~a" e (read-line e))))))
     (event-loop)))
 
 
 (module+ main
-  (displayln "it's tanuki time!" (current-error-port))
+  (log "it's tanuki time!")
   (tanuki-wm))
 

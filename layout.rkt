@@ -19,7 +19,7 @@
 (struct rect (x y w h) #:transparent)
 
 
-(define screen-stack%
+(define workspace%
   (class object%
     (super-new)
 
@@ -40,9 +40,21 @@
 
     (init-field xdisplay screen display-w display-h)
 
-    (field [layout-t  '(horizontal vertical fullscreen)]
-           [root-rect (rect 0 0 display-w display-h)]
-           [ss        (new screen-stack%)])
+    (field [layout-t   '(horizontal vertical fullscreen)]
+           [root-rect  (rect 0 0 display-w display-h)]
+           [current-ws (new workspace%)]
+           [wss        (hash 0 current-ws)])
+
+    (define/public (switch-workspace ws-id)
+      (define new-ws (hash-ref wss ws-id
+                               (λ ()
+                                 (let ([new-ws (new workspace%)])
+                                   (set! wss (hash-set wss ws-id new-ws))
+                                   new-ws))))
+      (when (not (eq? current-ws new-ws))
+        (hide-all (send current-ws get-ws))
+        (set! current-ws new-ws)
+        (layout)))
 
     (define/public (prev-layout)
       (set! layout-t (shift-left layout-t))
@@ -52,22 +64,22 @@
       (layout))
 
     (define/public (push-win w)
-      (send ss push-win w)
+      (send current-ws push-win w)
       (layout))
     (define/public (remove-win w)
-      (send ss remove-win w)
+      (send current-ws remove-win w)
       (layout))
 
     (define/public (rotate-left)
-      (send ss rotate-left)
+      (send current-ws rotate-left)
       (layout))
     (define/public (rotate-right)
-      (send ss rotate-right)
+      (send current-ws rotate-right)
       (layout))
 
     ;; Private
     (define (layout)
-      (match (send ss get-ws)
+      (match (send current-ws get-ws)
         [(list)   (void)]
         [(list w) (fullscreen w)]
         [(list-rest m ws)
