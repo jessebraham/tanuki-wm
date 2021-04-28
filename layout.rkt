@@ -23,7 +23,8 @@
   (class object%
     (super-new)
 
-    (field [ws '()])
+    (field [ws    '()]
+           [focus null])
 
     (define/public (get-wins) ws)
 
@@ -31,7 +32,11 @@
     (define/public (remove-win w) (set! ws (remove w ws)))
 
     (define/public (rotate-left)  (set! ws (shift-right ws)))
-    (define/public (rotate-right) (set! ws (shift-left  ws)))))
+    (define/public (rotate-right) (set! ws (shift-left  ws)))
+
+    (define/public (has-focus?)  (not (null? focus)))
+    (define/public (get-focus)   focus)
+    (define/public (set-focus w) (set! focus w))))
 
 
 (define layout-engine%
@@ -50,24 +55,36 @@
     (define BORDER   4)
     (define PADDING 20)
 
+    ;; These should be temporary, and will be removed when configuration is a
+    ;; thing.
+    (define black-pixel (BlackPixel xdisplay screen))
+    (define white-pixel (WhitePixel xdisplay screen))
+
     ;; ------------------------------------------------------------------------
     ;; Public Methods
 
     (define/public (push-win w)
-      (send current-ws push-win w)
       (XSetWindowBorderWidth xdisplay w BORDER)
-      (layout))
+      (send current-ws push-win w)
+      (layout)
+      (focus-window w))
 
     (define/public (remove-win w)
       (send current-ws remove-win w)
-      (layout))
+      (layout)
+      (let ([ws (send current-ws get-wins)])
+        (if (empty? ws)
+            (send current-ws set-focus null)
+            (focus-window (last ws)))))
 
     (define/public (switch-workspace ws-id)
       (let ([new-ws (wss-ref ws-id)])
         (when (not (eq? current-ws new-ws))
           (hide-all (send current-ws get-wins))
           (set! current-ws new-ws)
-          (layout))))
+          (layout)
+          (when (send current-ws has-focus?)
+            (focus-window (send current-ws get-focus))))))
 
     (define/public (move-to-workspace ws-id)
       (let* ([new-ws (wss-ref ws-id)]
@@ -75,7 +92,12 @@
         (unless (or (eq? current-ws new-ws) (null? w))
           (hide       w)
           (remove-win w) ; invokes `layout`
-          (send new-ws push-win w))))
+          (send new-ws push-win  w)
+          (send new-ws set-focus w)
+          (let ([ws (send current-ws get-wins)])
+            (if (empty? ws)
+                (send current-ws set-focus null)
+                (focus-window (last ws)))))))
 
     (define/public (prev-layout)
       (set! layout-t (shift-right layout-t))
@@ -92,6 +114,9 @@
     (define/public (rotate-cw)
       (send current-ws rotate-left)
       (layout))
+
+    (define/public (focus-prev) (shift-focus shift-right))
+    (define/public (focus-next) (shift-focus shift-left))
 
     ;; ------------------------------------------------------------------------
     ;; Private Methods
@@ -170,4 +195,33 @@
                    [(rect x y w h) r])
         (XMoveResizeWindow
          xdisplay win (+ x PADDING) (+ y PADDING) (- w bb pp) (- h bb pp))
-        (XMapWindow xdisplay win)))))
+        (XMapWindow xdisplay win)))
+
+    (define/private (shift-focus shift-fn)
+      (let ([ws (send current-ws get-wins)])
+        (match ws
+          [(list)   (void)]
+          [(list w) (focus-window w)]
+          [else
+           (if (send current-ws has-focus?)
+               (let* ([cf (send current-ws get-focus)]
+                      [nf (list-ref (shift-fn ws) (index-of ws cf))])
+                 (focus-window nf))
+               (focus-window (last ws)))]))
+      (layout))
+
+    (define/private (focus-window w)
+      (let ([focus (send current-ws get-focus)])
+        (unless (null? focus) (set-focus-state focus #f)))
+      (set-focus-state w #t))
+
+    (define/private (set-focus-state w active?)
+      (let* ([focus-w (if active? w null)]
+             [input-w (if active? w None)])
+        (send current-ws set-focus focus-w)
+        (XSetInputFocus   xdisplay input-w 'RevertToParent CurrentTime)
+        (XSetWindowBorder xdisplay w (if active? white-pixel black-pixel))))
+
+    ;; end of layout-engine%
+    ))
+

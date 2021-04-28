@@ -39,8 +39,8 @@
 (define (handle-keypress-event xdisplay engine event)
   (let ([xk-key (XKeycodeToKeysym xdisplay (XKeyEvent-keycode event) 0)])
     (case (XKeyEvent-state event)
-      ;; META + SHIFT
-      [((Mod1Mask ShiftMask))
+      ;; SHIFT + META
+      [((ShiftMask Mod1Mask))
        (case xk-key
          ;; SPACE
          [(32)
@@ -60,6 +60,12 @@
          ;; h
          [(104)
           (send engine rotate-ccw)]
+         ;; j
+         [(106)
+          (send engine focus-prev)]
+         ;; k
+         [(107)
+          (send engine focus-next)]
          ;; l
          [(108)
           (send engine rotate-cw)])])))
@@ -99,7 +105,7 @@
   ;; Enable 'KeyPress' events for all relevant key combinations. We must be
   ;; careful to only mask the key combinations we want to capture, otherwise
   ;; we may prevent certain key combinations in other applications.
-  (define alpha-keys (list XK-h XK-l))
+  (define alpha-keys (list XK-h XK-j XK-k XK-l))
   (define num-keys   (list XK-0 XK-1 XK-2 XK-3 XK-4 XK-5 XK-6 XK-7 XK-8 XK-9))
   (define other-keys (list XK-space))
 
