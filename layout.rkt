@@ -41,24 +41,24 @@
 
 (define layout-engine%
   (class object%
-    (super-new)
+    (init-field
+     xdisplay screen)
 
-    (init-field xdisplay screen display-w display-h)
-
-    (field [layout-t  '(horizontal vertical fullscreen)]
-           [root-rect  (rect 0 0 display-w display-h)]
-           [current-ws (new workspace%)]
-           [wss        (hash 0 current-ws)])
-
-    ;; Eventually these values will be loaded from a configuration file or
-    ;; something, but until then we'll just define them here for convenience.
-    (define BORDER   4)
-    (define PADDING 20)
-
-    ;; These should be temporary, and will be removed when configuration is a
-    ;; thing.
-    (define black-pixel (BlackPixel xdisplay screen))
-    (define white-pixel (WhitePixel xdisplay screen))
+    (field
+     ;; Enumerate all supported layout configurations.
+     [layout-t '(horizontal vertical fullscreen)]
+     ;; Store the width and height of the display, and create the `rect` struct
+     ;; representing it.
+     [display-w (DisplayWidth  xdisplay screen)]
+     [display-h (DisplayHeight xdisplay screen)]
+     [root-rect (rect 0 0 display-w display-h)]
+     ;; Create the initial workspace, as well as a hash mapping workspace ids
+     ;; to their respective objects.
+     [current-ws (new workspace%)]
+     [wss        (hash 0 current-ws)]
+     ;; Allocate the pixels for the focus and no-focus broder styles.
+     [focus-px   (alloc-color-w "indigo")]
+     [nofocus-px (alloc-color-b "web green")])
 
     ;; ------------------------------------------------------------------------
     ;; Public Methods
@@ -221,7 +221,11 @@
         (send current-ws set-focus focus-w)
         (XSetInputFocus   xdisplay input-w 'RevertToParent CurrentTime)
         (XSetWindowBorder xdisplay w (if active? white-pixel black-pixel))))
+    (define/private (alloc-color-b name)
+      (AllocNamedColor xdisplay screen name (BlackPixel xdisplay screen)))
+
+    (define/private (alloc-color-w name)
+      (AllocNamedColor xdisplay screen name (WhitePixel xdisplay screen)))
 
     ;; end of layout-engine%
-    ))
-
+    (super-new)))
